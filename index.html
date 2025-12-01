@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Wickinion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Changa+One&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['Cinzel', 'serif'],
+              body: ['Cormorant Garamond', 'serif'], 
+              sans: ['Lato', 'sans-serif'],
+              retro: ['Changa One', 'cursive'],
+            },
+            colors: {
+              parchment: '#e3dcd2',
+              'parchment-dark': '#d1c7b7',
+              wood: '#3e2723',
+              'wood-light': '#5d4037',
+              'wood-dark': '#281a16',
+              leather: '#1a120b',
+              gold: '#c5a059',
+              'gold-light': '#e6c888',
+              'gold-dark': '#8a6e38',
+              'royal-red': '#5e1b1b',
+              'life-green': '#4ade80',
+              'life-yellow': '#facc15',
+              'life-pink': '#f472b6',
+              'life-blue': '#60a5fa',
+            },
+            backgroundImage: {
+              'wood-pattern': "repeating-linear-gradient(45deg, #281a16 0px, #281a16 10px, #3e2723 10px, #3e2723 20px)",
+              'leather-gradient': "radial-gradient(circle at center, #2c1e16 0%, #0f0a06 100%)",
+              'gold-gradient': "linear-gradient(135deg, #8a6e38 0%, #e6c888 50%, #8a6e38 100%)",
+              'parchment-texture': "url('https://www.transparenttextures.com/patterns/aged-paper.png')",
+              'noise': "url('https://www.transparenttextures.com/patterns/stardust.png')",
+            },
+            boxShadow: {
+              'inner-deep': 'inset 0 2px 20px 0 rgba(0, 0, 0, 0.8)',
+              'outer-glow': '0 0 30px rgba(197, 160, 89, 0.3)',
+              'fire-glow': '0 0 40px rgba(234, 88, 12, 0.3)',
+              'card-rest': '0 2px 4px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.3)',
+              'card-hover': '0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 15px 30px -15px rgba(0, 0, 0, 0.7)',
+              'heavy': '0 30px 70px -15px rgba(0, 0, 0, 0.95)',
+              'emboss': 'inset 1px 1px 0 rgba(255, 255, 255, 0.1), inset -1px -1px 0 rgba(0, 0, 0, 0.7)',
+              'gem': 'inset 0 3px 6px rgba(255,255,255,0.6), inset 0 -3px 6px rgba(0,0,0,0.6), 0 2px 5px rgba(0,0,0,0.5)',
+            },
+            animation: {
+              'draw': 'draw-card 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'play': 'play-card 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards',
+              'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              'discard-hand': 'discard-hand 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards',
+              'discard-play': 'discard-play 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards',
+              'float-up': 'float-up 2s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+              'shimmer': 'shimmer 3s linear infinite',
+              'shake': 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both',
+              'ember': 'float-ember 12s linear infinite',
+              'spin-slow': 'spin 8s linear infinite',
+            },
+            keyframes: {
+              'draw-card': {
+                '0%': { opacity: '0', transform: 'translateY(100px) scale(0.8) rotate(-5deg)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1) rotate(0)' },
+              },
+              'play-card': {
+                '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+                '50%': { opacity: '1', transform: 'translateY(-20px) scale(1.1)' },
+                '100%': { opacity: '1', transform: 'translateY(-150px) scale(0.9) rotate(2deg)' },
+              },
+              'pop': {
+                '0%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(1.05) brightness(1.2)' },
+                '100%': { transform: 'scale(1)' },
+              },
+              'discard-hand': {
+                '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+                '100%': { opacity: '0', transform: 'translateY(200px) rotate(20deg) scale(0.8)' }
+              },
+              'discard-play': {
+                '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+                '100%': { opacity: '0', transform: 'translateY(200px) scale(0.8)' }
+              },
+              'float-up': {
+                '0%': { opacity: '0', transform: 'translateY(20px) scale(0.8)' },
+                '15%': { opacity: '1', transform: 'translateY(0) scale(1.1)' },
+                '100%': { opacity: '0', transform: 'translateY(-80px) scale(1)' }
+              },
+              'shimmer': {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' }
+              },
+              'shake': {
+                '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+              },
+              'float-ember': {
+                '0%': { transform: 'translateY(110vh) translateX(0) scale(0.5)', opacity: '0' },
+                '50%': { opacity: '0.8' },
+                '100%': { transform: 'translateY(-10vh) translateX(40px) scale(1.4)', opacity: '0' }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #050403;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      #root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* Base styles for background layers */
+      .bg-layer {
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        position: relative;
+        transition: background-image 0.5s ease-in-out;
+      }
+
+      /* 1. BOOT SEQUENCE */
+      .bg-boot {
+        background-image: url('./booting.png');
+      }
+
+      /* 2. MAIN MENU */
+      .bg-menu {
+        background-image: url('./startmenu.png');
+      }
+
+      /* 3. GAMEPLAY (AAA Card Table) */
+      .bg-game {
+        background-color: #1a1008;
+        /* High fidelity wood texture with atmospheric lighting vignetting */
+        background-image: 
+          radial-gradient(circle at 50% 40%, rgba(255, 220, 180, 0.08) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0.9) 100%),
+          url('https://www.transparenttextures.com/patterns/dark-wood.png');
+        box-shadow: inset 0 0 100px #000;
+      }
+
+      /* Stronger Vignette to make UI pop over the busy box art */
+      .vignette {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        pointer-events: none;
+        background: radial-gradient(circle at center, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.6) 60%, rgba(5,4,3,0.95) 100%);
+      }
+
+      .ember {
+        position: absolute;
+        width: 3px;
+        height: 3px;
+        background: #fdba74;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #f97316, 0 0 20px #ea580c;
+        pointer-events: none;
+        z-index: 3;
+        filter: blur(0.5px);
+      }
+
+      .card-back-pattern {
+        background-image: repeating-linear-gradient(45deg, #281a16 0px, #281a16 10px, #3e2723 10px, #3e2723 20px);
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+      }
+
+      /* --- GEM PROCEDURAL TEXTURES --- */
+      .gem-emerald {
+        background: radial-gradient(circle at 30% 30%, #4ade80 0%, #15803d 40%, #052e16 100%);
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.7), inset -2px -2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(74,222,128,0.3);
+      }
+      .gem-sapphire {
+        background: radial-gradient(circle at 30% 30%, #60a5fa 0%, #1d4ed8 40%, #0c152e 100%);
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.7), inset -2px -2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(96,165,250,0.3);
+      }
+      .gem-ruby {
+        background: radial-gradient(circle at 30% 30%, #f87171 0%, #b91c1c 40%, #450a0a 100%);
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.7), inset -2px -2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(248,113,113,0.3);
+      }
+      .gem-gold {
+        background: radial-gradient(circle at 30% 30%, #fcd34d 0%, #b45309 50%, #78350f 100%);
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.7), inset -2px -2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(252,211,77,0.3);
+      }
+      .gem-amethyst {
+        background: radial-gradient(circle at 30% 30%, #c084fc 0%, #7e22ce 40%, #3b0764 100%);
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.7), inset -2px -2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(192,132,252,0.3);
+      }
+
+      .text-shadow-heavy {
+        text-shadow: 0 4px 8px rgba(0,0,0,0.9);
+      }
+      .card-3d-wrapper {
+        transform-style: preserve-3d;
+        transition: transform 0.1s ease-out;
+      }
+      .card-face {
+        backface-visibility: hidden;
+        box-shadow: 1px 1px 0 #1a1a1a, 2px 2px 0 #1a1a1a, 3px 3px 0 #1a1a1a, 4px 4px 0 #1a1a1a, 0 20px 40px -10px rgba(0,0,0,0.8);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "peerjs": "https://esm.sh/peerjs@1.5.2?bundle"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
