@@ -94,7 +94,7 @@ interface FloatingText { id: number; text: string; color: string; }
 
 export default function App() {
   // --- Loading State ---
-  const [isLoading, setIsLoading] = useState(true);
+  const [bootPhase, setBootPhase] = useState<'LOADING' | 'ZOOMING' | 'MENU'>('LOADING');
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingText, setLoadingText] = useState("Initializing Realm...");
 
@@ -256,8 +256,14 @@ export default function App() {
         clearInterval(textInterval);
         setLoadingProgress(100);
         setLoadingText("Enter the Realm");
+        
+        // Wait small delay then start zoom
         setTimeout(() => {
-            setIsLoading(false);
+            setBootPhase('ZOOMING');
+            // 2 seconds zoom then menu
+            setTimeout(() => {
+                setBootPhase('MENU');
+            }, 2000);
         }, 800);
     };
 
@@ -425,7 +431,7 @@ export default function App() {
       if (msg.type === 'STATE_UPDATE') {
           const { players: p, supply: s, turnCount: t, currentPlayerIndex: c, log: l } = msg.payload;
           setPlayers(p); setSupply(s); setTurnCount(t); setCurrentPlayerIndex(c); setLog(l);
-          if (!hasStarted) { setHasStarted(true); setShowGameSetup(false); setShowOnlineMenu(false); setIsLoading(false); setIsConnecting(false); }
+          if (!hasStarted) { setHasStarted(true); setShowGameSetup(false); setShowOnlineMenu(false); setIsConnecting(false); }
       } 
       else if (msg.type === 'START_GAME') {
           setMyPlayerId(msg.payload.yourPlayerId);
@@ -1447,10 +1453,13 @@ export default function App() {
   // --- Render ---
 
   // NEW: AAA Boot Sequence Loading Screen
-  if (isLoading) {
+  if (bootPhase === 'LOADING' || bootPhase === 'ZOOMING') {
       return (
           // The main container background is intentionally transparent to reveal the box art from index.html
-          <div className="min-h-screen flex flex-col justify-end pb-12 p-0 relative overflow-hidden select-none bg-boot">
+          <div 
+             className={`min-h-screen flex flex-col justify-end pb-12 p-0 relative overflow-hidden select-none bg-boot ${bootPhase === 'ZOOMING' ? 'animate-zoom-in' : ''}`}
+             style={{ transformOrigin: 'center center' }}
+          >
               <div className="atmosphere-noise"></div>
               <div className="vignette"></div>
               <EmberParticles />
