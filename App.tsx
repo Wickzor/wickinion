@@ -119,6 +119,7 @@ export default function App() {
   const [hostIdInput, setHostIdInput] = useState('');
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const [lobbyStatus, setLobbyStatus] = useState<string>('');
+  const [isConnecting, setIsConnecting] = useState(false);
   
   // Refs
   const peerRef = useRef<Peer | null>(null);
@@ -343,8 +344,8 @@ export default function App() {
   const initHost = () => {
     const peer = new Peer();
     peerRef.current = peer;
-    peer.on('open', (id) => { setPeerId(id); setLobbyStatus('Waiting for challengers...'); setMyPlayerId(0); });
-    peer.on('connection', (conn) => {
+    (peer as any).on('open', (id: string) => { setPeerId(id); setLobbyStatus('Waiting for challengers...'); setMyPlayerId(0); });
+    (peer as any).on('connection', (conn: any) => {
         hostConnectionsRef.current.push(conn);
         setConnectedPeers(prev => [...prev, conn.peer]);
         conn.on('data', (data: any) => handleNetworkMessage(data as NetworkMessage));
@@ -353,15 +354,38 @@ export default function App() {
   };
 
   const joinGame = () => {
-      if (!hostIdInput) return;
+      if (!hostIdInput || isConnecting) return;
+      setIsConnecting(true);
       const peer = new Peer();
       peerRef.current = peer;
-      peer.on('open', () => {
+      (peer as any).on('open', () => {
           const conn = peer.connect(hostIdInput);
           clientConnectionRef.current = conn;
           setLobbyStatus('Connecting to realm...');
-          conn.on('open', () => { setLobbyStatus('Connected! Awaiting host...'); setGameMode('ONLINE_CLIENT'); });
-          conn.on('data', (data: any) => handleNetworkMessage(data as NetworkMessage));
+          
+          // Timeout to reset state if connection fails silently
+          const connectionTimeout = setTimeout(() => {
+              if (lobbyStatus !== 'Connected! Awaiting host...') {
+                 setIsConnecting(false);
+                 setLobbyStatus('Connection timed out. Check Host ID.');
+              }
+          }, 10000);
+
+          (conn as any).on('open', () => { 
+              clearTimeout(connectionTimeout);
+              setLobbyStatus('Connected! Awaiting host...'); 
+              setGameMode('ONLINE_CLIENT'); 
+          });
+          (conn as any).on('data', (data: any) => handleNetworkMessage(data as NetworkMessage));
+          (conn as any).on('error', () => {
+              clearTimeout(connectionTimeout);
+              setIsConnecting(false);
+              setLobbyStatus('Connection failed.');
+          });
+      });
+      (peer as any).on('error', (err: any) => {
+          setIsConnecting(false);
+          setLobbyStatus('Peer Error: ' + err.type);
       });
   };
 
@@ -381,13 +405,14 @@ export default function App() {
       if (msg.type === 'STATE_UPDATE') {
           const { players: p, supply: s, turnCount: t, currentPlayerIndex: c, log: l } = msg.payload;
           setPlayers(p); setSupply(s); setTurnCount(t); setCurrentPlayerIndex(c); setLog(l);
-          if (!hasStarted) { setHasStarted(true); setShowGameSetup(false); setShowOnlineMenu(false); }
+          if (!hasStarted) { setHasStarted(true); setShowGameSetup(false); setShowOnlineMenu(false); setIsLoading(false); setIsConnecting(false); }
       } 
       else if (msg.type === 'START_GAME') {
           setMyPlayerId(msg.payload.yourPlayerId);
           setHasStarted(true); setShowGameSetup(false); setShowOnlineMenu(false);
           setGameMode('ONLINE_CLIENT');
           addLog("Connected to Online Game.");
+          setIsConnecting(false);
       }
       else if (msg.type === 'ACTION') {
           if (gameMode !== 'ONLINE_HOST') return;
@@ -1500,8 +1525,15 @@ export default function App() {
                         </div>
 
                         <div className="flex flex-col gap-3">
-                            <input type="text" placeholder="Enter Host ID..." className="w-full bg-[#0f0a06] border border-[#3e2723] text-parchment p-3 font-mono text-center outline-none focus:border-[#c5a059] transition-colors placeholder:text-[#3e2723] text-lg shadow-inner-deep rounded-sm" value={hostIdInput} onChange={e => setHostIdInput(e.target.value)} />
-                            <button onClick={joinGame} className="w-full py-4 bg-[#1a120b] text-[#8a6e38] font-serif font-bold border border-[#3e2723] hover:text-[#c5a059] hover:border-[#8a6e38] transition-all text-lg tracking-wide uppercase rounded-sm">Join Game</button>
+                            <input type="text" placeholder="Enter Host ID..." className="w-full bg-[#0f0a06] border border-[#3e2723] text-parchment p-3 font-mono text-center outline-none focus:border-[#c5a059] transition-colors placeholder:text-[#3e2723] text-lg shadow-inner-deep rounded-sm" value={hostIdInput} onChange={e => setHostIdInput(e.target.value)} disabled={isConnecting} />
+                            {lobbyStatus && lobbyStatus !== 'Waiting for challengers...' && (
+                                <div className={`text-center text-xs uppercase tracking-widest font-bold ${lobbyStatus.includes('failed') || lobbyStatus.includes('Error') || lobbyStatus.includes('timed out') ? 'text-red-500' : 'text-[#e6c888]'} animate-pulse`}>
+                                   {lobbyStatus}
+                                </div>
+                            )}
+                            <button onClick={joinGame} disabled={isConnecting || !hostIdInput} className="w-full py-4 bg-[#1a120b] text-[#8a6e38] font-serif font-bold border border-[#3e2723] hover:text-[#c5a059] hover:border-[#8a6e38] transition-all text-lg tracking-wide uppercase rounded-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                {isConnecting ? 'Connecting...' : 'Join Game'}
+                            </button>
                         </div>
                       </div>
                       <button onClick={() => setShowOnlineMenu(false)} className="text-xs text-[#5d4037] hover:text-[#8a6e38] mt-6 w-full text-center hover:underline uppercase tracking-widest font-sans font-bold block">Return to Main Menu</button>
@@ -1881,220 +1913,4 @@ export default function App() {
                 <span className="font-serif font-bold tracking-widest uppercase text-sm">Throne Room Active</span>
             </div>
           )}
-          <div className={`flex flex-col gap-6 md:gap-10 lg:gap-4 2xl:gap-16 max-w-[95%] xl:max-w-7xl 2xl:max-w-[90%] mx-auto transition-opacity duration-300 ${isInteracting && currentInteraction?.type === 'HAND_SELECTION' ? 'opacity-30 pointer-events-none grayscale' : 'opacity-100'}`}>
-             {/* Supply Rendering */}
-             {['Royal Treasury', 'Lands & Titles', 'The Marketplace'].map((section, idx) => {
-                 const type = idx === 0 ? CardType.TREASURE : idx === 1 ? CardType.VICTORY : 'KINGDOM';
-                 const icon = idx === 0 ? <Coins className="text-[#ffd700]"/> : idx === 1 ? <MapIcon className="text-green-500"/> : <Sword className="text-stone-400"/>;
-                 const cards = type === 'KINGDOM' ? Object.keys(supply).filter(k => !['TREASURE','VICTORY','CURSE'].includes(CARDS[k].type)).map(k => ({...CARDS[k], count: supply[k]})) 
-                              : Object.keys(supply).filter(k => CARDS[k].type === type).map(k => ({...CARDS[k], count: supply[k]}));
-                 if (cards.length === 0) return null;
-                 return (
-                     <div key={section} className="relative pt-2 md:pt-6 lg:pt-1">
-                         <div className="flex items-center gap-4 mb-4 md:mb-6 lg:mb-2 2xl:mb-10 border-b border-[#3e2723]/50 pb-2">
-                             <h3 className="text-[#8a6e38] font-serif font-bold text-xs md:text-sm 2xl:text-xl flex items-center gap-2 uppercase tracking-[0.3em]">{icon} {section}</h3>
-                             <div className="h-[1px] flex-1 bg-gradient-to-r from-[#3e2723] to-transparent"></div>
-                         </div>
-                         {/* Supply cards grid adjusted for responsiveness */}
-                         <div className={`grid ${idx===2?'grid-cols-3 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6':'grid-cols-3 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-4'} gap-1 md:gap-2 lg:gap-2 2xl:gap-4 place-items-center`}>
-                             {cards.map(c => {
-                                 // Supply Interaction Highlight
-                                 const isHighlight = isInteracting && currentInteraction?.type === 'SUPPLY_SELECTION' && (!currentInteraction.filter || currentInteraction.filter(c));
-                                 return (
-                                     <div key={c.id} className="relative perspective-1000">
-                                         {isHighlight && <div className="absolute -inset-2 z-30 animate-pulse border border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.3)] rounded-lg pointer-events-none"></div>}
-                                         <CardDisplay 
-                                            small 
-                                            card={c} 
-                                            count={c.count} 
-                                            // Enable click if Buy Phase OR if Interacting with supply
-                                            disabled={
-                                                isInteracting 
-                                                    ? (!currentInteraction || currentInteraction.type !== 'SUPPLY_SELECTION' || (currentInteraction.filter && !currentInteraction.filter(c)))
-                                                    : (!isMyTurn)
-                                            } 
-                                            onClick={() => handleSupplyCardClick(c.id)} 
-                                            onMouseEnter={() => setHoveredCard(c)} 
-                                            onMouseLeave={() => setHoveredCard(null)} 
-                                         />
-                                     </div>
-                                 )
-                             })}
-                         </div>
-                     </div>
-                 )
-             })}
-             {supply['curse'] > 0 && <div className="relative pt-6 w-min mx-auto"><div className="flex items-center justify-center gap-4 mb-4"><h3 className="text-[#5e1b1b] font-serif font-bold text-xs 2xl:text-lg flex items-center gap-2 uppercase tracking-[0.3em]"><Skull size={14} className="text-[#5e1b1b]"/> Curses</h3></div><div className="mt-2"><CardDisplay small card={CARDS['curse']} disabled count={supply['curse']} /></div></div>}
-          </div>
-
-          <section className="min-h-[160px] md:min-h-[220px] lg:min-h-[140px] xl:min-h-[180px] 2xl:min-h-[400px] rounded-sm p-4 md:p-10 lg:p-6 2xl:p-16 mt-8 md:mt-12 lg:mt-6 flex flex-col items-center relative bg-[#0f0a06]/60 border-y border-[#3e2723] shadow-inner-deep">
-             <div className="absolute inset-0 bg-[#000000] opacity-30 pointer-events-none"></div>
-            <h2 className="text-[#3e2723] text-[10px] md:text-xs 2xl:text-lg uppercase tracking-[0.5em] text-center mb-4 md:mb-8 lg:mb-4 font-sans font-bold border-b border-[#3e2723] pb-2 w-48 2xl:w-64 relative z-10">Battlefield</h2>
-            <div className="flex flex-wrap justify-center gap-2 md:gap-4 lg:gap-2 2xl:gap-8 relative z-10 perspective-1000">
-              {currentPlayer?.playArea.map((card, idx) => <div key={idx} className={`transform transition-all duration-300 ${isEndingTurn ? 'animate-discard-play' : 'animate-play'} shadow-heavy scale-75 md:scale-90 lg:scale-75 xl:scale-90 2xl:scale-100`}><CardDisplay card={card} disabled /></div>)}
-              {currentPlayer?.playArea.length === 0 && <div className="w-full text-center text-[#3e2723] italic py-8 font-serif text-sm 2xl:text-xl tracking-widest opacity-50">The field is empty...</div>}
-            </div>
-          </section>
-        </div>
-        
-        {hoveredCard && <div className="absolute bottom-6 left-6 z-[100] hidden md:block animate-in fade-in zoom-in duration-200 pointer-events-none"><div className="shadow-[0_0_50px_rgba(0,0,0,1)]"><CardDisplay card={hoveredCard} disabled /></div></div>}
-        
-        {/* Hand */}
-        {activePlayer && (
-        <div className={`border-t border-[#3e2723] bg-[#0f0a06]/95 p-2 md:p-4 lg:p-2 2xl:p-8 shadow-[0_-20px_60px_rgba(0,0,0,1)] z-30 fixed bottom-0 left-0 right-0 md:relative transition-all duration-500 backdrop-blur-md ${isInteracting ? 'brightness-50 grayscale-[0.5]' : ''}`}>
-          
-          {/* Phase Badge */}
-          <div className="absolute -top-3 md:-top-5 lg:-top-4 2xl:-top-8 left-1/2 transform -translate-x-1/2 bg-[#0f0a06] border border-[#3e2723] text-parchment px-6 md:px-10 2xl:px-16 py-1 md:py-2 2xl:py-3 shadow-heavy font-sans font-bold text-[8px] md:text-[10px] lg:text-[8px] 2xl:text-base tracking-[0.3em] flex items-center gap-4 md:gap-6 z-0">
-             {activePlayerIndex !== currentPlayerIndex ? (
-                 <span className="text-red-500 flex items-center gap-2 animate-pulse"><ShieldAlert size={12}/> DEFEND</span>
-             ) : (
-                 <>
-                    <span className={`${currentPhase === 'ACTION PHASE' && !isInteracting ? 'text-[#c5a059] drop-shadow-glow' : 'text-[#3e2723]'}`}>ACTION</span><span className="text-[#3e2723]">|</span><span className={`${currentPhase === 'BUY PHASE' && !isInteracting ? 'text-[#c5a059] drop-shadow-glow' : 'text-[#3e2723]'}`}>BUY</span>
-                 </>
-             )}
-          </div>
-
-          <div className="flex justify-between items-center mb-2 md:mb-4 px-2 md:px-8 max-w-7xl 2xl:max-w-[90%] mx-auto w-full relative z-10">
-             <div className="flex items-center gap-4">
-                 <h2 className={`text-[#8a6e38] font-serif tracking-[0.3em] text-[10px] md:text-xs 2xl:text-lg uppercase font-bold text-shadow-heavy ${activePlayerIndex !== currentPlayerIndex ? 'text-red-900' : ''}`}>{activePlayer.name}</h2>
-                 <button onClick={() => setIsDiscardOpen(true)} className="lg:hidden text-[8px] md:text-[10px] text-[#5d4037] hover:text-[#8a6e38] uppercase tracking-widest font-bold">Discard ({activePlayer.discard.length})</button>
-             </div>
-             <button onClick={handlePlayAllTreasures} disabled={gameOver || isEndingTurn || !isMyTurn || isInteracting} className="text-[8px] md:text-[10px] 2xl:text-sm bg-[#1a120b] hover:bg-[#2c1e16] text-[#c5a059] px-4 md:px-6 2xl:px-10 py-2 md:py-3 2xl:py-4 border border-[#3e2723] hover:border-[#8a6e38] uppercase tracking-[0.2em] font-sans font-bold transition-all shadow-md disabled:opacity-20 disabled:grayscale">Play All Treasure</button>
-          </div>
-          
-          {/* PLAYER HAND AREA */}
-          <div className="flex items-end justify-center w-full max-w-7xl 2xl:max-w-[90%] mx-auto gap-8 relative z-10 perspective-1000 min-h-[140px] md:min-h-[14rem] lg:min-h-[12rem] xl:min-h-[14rem] 2xl:min-h-[28rem] overflow-x-auto md:overflow-visible pb-2 md:pb-0 hide-scrollbar">
-             
-             {/* LEFT: DECK (Now Full Size Card Stack) */}
-             <div className="hidden lg:flex flex-col items-center mb-6 2xl:mb-12 opacity-90 hover:opacity-100 transition-opacity" title={`${activePlayer.deck.length} cards in deck`}>
-                 <div className="relative w-48 h-72 lg:w-24 lg:h-36 xl:w-32 xl:h-48 2xl:w-72 2xl:h-[28rem] card-3d-wrapper hover:scale-105 transition-transform duration-300 origin-bottom-left scale-75 xl:scale-90">
-                      {/* Physical Stack Effect */}
-                      {activePlayer.deck.length > 1 && <div className="absolute top-1 left-1 w-full h-full bg-[#1a0f0a] rounded-lg border border-[#3e2723] shadow-heavy transform translate-z-[-2px]"></div>}
-                      {activePlayer.deck.length > 2 && <div className="absolute top-2 left-2 w-full h-full bg-[#1a0f0a] rounded-lg border border-[#3e2723] shadow-heavy transform translate-z-[-4px]"></div>}
-                      
-                      {/* Top Card Back */}
-                      <div className="absolute inset-0 bg-[#281a16] rounded-xl border-4 border-[#5d4037] shadow-heavy card-back-pattern flex items-center justify-center overflow-hidden">
-                          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-20"></div>
-                          <div className="w-16 h-16 lg:w-12 lg:h-12 xl:w-16 xl:h-16 2xl:w-40 2xl:h-40 rounded-full border-4 border-[#5d4037] flex items-center justify-center bg-[#1a0f0a] shadow-inner-deep">
-                              <Crown size={48} className="text-[#8a6e38] drop-shadow-lg lg:w-6 lg:h-6 xl:w-8 xl:h-8 2xl:w-20 2xl:h-20" />
-                          </div>
-                      </div>
-                 </div>
-                 <span className="text-[10px] 2xl:text-sm text-[#8a6e38] mt-2 font-sans uppercase tracking-[0.3em] font-bold">Deck ({activePlayer.deck.length})</span>
-             </div>
-
-             {/* CENTER: HAND CARDS */}
-             <div className="flex-1 flex overflow-visible pb-4 md:pb-10 lg:pb-6 2xl:pb-20 gap-0 px-4 justify-center items-end origin-bottom transform scale-[0.85] md:scale-100" style={{perspective: '1000px'}}>
-                 {activePlayer.hand.map((card, idx) => {
-                  const isAction = card.type === CardType.ACTION || card.type === CardType.REACTION;
-                  const isTreasure = card.type === CardType.TREASURE;
-                  
-                  let disabled = false;
-                  if (isInteracting) {
-                      if (currentInteraction?.type !== 'HAND_SELECTION' && currentInteraction?.type !== 'CUSTOM_SELECTION') disabled = true;
-                  } else {
-                      const isActionPlayable = isAction && (activePlayer.actions > 0 || actionMultiplier > 1);
-                      if (!isMyTurn || gameOver || isEndingTurn || (!isActionPlayable && !isTreasure)) disabled = true;
-                      if (activePlayerIndex !== currentPlayerIndex) disabled = true;
-                  }
-
-                  const isSelected = selectedHandIndices.includes(idx);
-                  
-                  // Fanning Calculation
-                  const total = activePlayer.hand.length;
-                  const center = (total - 1) / 2;
-                  const dist = idx - center;
-                  const rotate = dist * 2; 
-                  const translateY = Math.abs(dist) * 2; 
-
-                  return (
-                    <div key={`${idx}-${card.id}`} 
-                         className={`relative transition-all duration-300 -ml-6 md:-ml-12 lg:-ml-10 xl:-ml-12 2xl:-ml-24 first:ml-0 ${isEndingTurn ? 'animate-discard-hand' : 'animate-draw'} ${!disabled ? 'hover:z-50' : ''}`} 
-                         style={{ 
-                             zIndex: idx,
-                             transform: isSelected ? `translateY(-40px) rotate(0deg)` : `rotate(${rotate}deg) translateY(${translateY}px)`,
-                             animationDelay: `${idx * 0.05}s` 
-                         }}>
-                      <CardDisplay 
-                          card={card} 
-                          disabled={disabled} 
-                          shake={shakingCardId === `${idx}-${card.id}`}
-                          selected={isSelected}
-                          onClick={() => {
-                              if (isMyTurn && !gameOver && !isEndingTurn) handleHandCardClick(idx);
-                          }} 
-                      />
-                    </div>
-                  );
-                 })}
-                 {activePlayer.hand.length === 0 && <div className="text-[#3e2723] italic py-10 w-full text-center font-serif text-sm tracking-widest opacity-50">Empty Hand</div>}
-                 
-                 {/* FLOATING END TURN BUTTON */}
-                 {!gameOver && !isInteracting && isMyTurn && (
-                   <div className="relative z-40 animate-in fade-in zoom-in duration-300 ml-4 md:ml-8 mb-8 md:mb-20 2xl:mb-32 self-center">
-                      {currentPlayer.actions <= 0 && currentPlayer.buys <= 0 && (
-                        <>
-                          <div className="absolute inset-0 rounded-full bg-[#ef4444] opacity-20 animate-ping pointer-events-none"></div>
-                          <div className="absolute -inset-4 rounded-full bg-[#c5a059] opacity-10 animate-pulse pointer-events-none blur-xl"></div>
-                        </>
-                      )}
-
-                      <button 
-                        onClick={handleEndTurn} 
-                        disabled={isEndingTurn}
-                        className={`
-                          group relative w-16 h-16 md:w-28 md:h-28 lg:w-16 lg:h-16 xl:w-20 xl:h-20 2xl:w-40 2xl:h-40 rounded-full flex flex-col items-center justify-center 
-                          bg-gradient-to-b from-[#7f1d1d] via-[#450a0a] to-[#2a0a0a]
-                          border-[3px] border-[#c5a059] 
-                          shadow-[0_10px_20px_rgba(0,0,0,0.8),inset_0_2px_10px_rgba(255,255,255,0.2)]
-                          transition-all duration-300 
-                          hover:scale-110 hover:shadow-[0_0_30px_rgba(197,160,89,0.6)] hover:border-[#ffd700]
-                          active:scale-95 active:translate-y-1
-                        `}
-                      >
-                          <div className="absolute inset-1 rounded-full border border-[#991b1b] bg-gradient-to-br from-transparent to-black/50 pointer-events-none"></div>
-                          <div className="absolute -inset-[2px] rounded-full border border-[#8a6e38] opacity-50 pointer-events-none"></div>
-                          <div className="relative z-10 mb-1">
-                              <div className="absolute inset-0 bg-[#ffd700] blur-md opacity-0 group-hover:opacity-40 transition-opacity duration-300"></div>
-                              <Hourglass 
-                                className="text-[#e6c888] group-hover:text-[#fff] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] transition-colors duration-300 lg:w-6 lg:h-6 2xl:w-12 2xl:h-12" 
-                                size={20} 
-                                strokeWidth={2.5}
-                              />
-                          </div>
-                          <span className="relative z-10 text-[#e6c888] font-serif font-black text-[6px] md:text-[10px] lg:text-[8px] 2xl:text-sm tracking-[0.25em] uppercase group-hover:text-[#ffd700] text-shadow-heavy transition-colors duration-300 hidden md:block">
-                              {isEndingTurn ? 'Ending' : 'End Turn'}
-                          </span>
-                      </button>
-                   </div>
-                 )}
-             </div>
-
-             {/* RIGHT: DISCARD (Full Size Card Stack) */}
-             <button onClick={() => setIsDiscardOpen(true)} className="hidden lg:flex flex-col items-center mb-6 2xl:mb-12 cursor-pointer hover:scale-105 transition-transform relative group origin-bottom-right scale-75 xl:scale-90">
-                 <div className="relative w-48 h-72 lg:w-24 lg:h-36 xl:w-32 xl:h-48 2xl:w-72 2xl:h-[28rem]">
-                     {activePlayer.discard.length === 0 ? (
-                        <div className="w-full h-full bg-[#0f0a06] border-4 border-dashed border-[#3e2723] rounded-xl flex items-center justify-center shadow-inner-deep">
-                            <span className="text-[#3e2723] text-sm font-sans uppercase tracking-widest">Empty</span>
-                        </div>
-                     ) : (
-                        <div className="relative w-full h-full">
-                            {activePlayer.discard.length > 1 && <div className="absolute top-1 right-1 w-full h-full bg-black/50 rounded-xl transform rotate-2"></div>}
-                            <div className="relative z-10 w-full h-full shadow-heavy group-hover:rotate-2 transition-transform duration-300">
-                                <CardDisplay card={activePlayer.discard[activePlayer.discard.length-1]} />
-                            </div>
-                        </div>
-                     )}
-                     <div className="absolute -top-3 -right-3 w-10 h-10 2xl:w-16 2xl:h-16 bg-[#1a120b] text-[#e6c888] border border-[#5d4037] flex items-center justify-center text-lg 2xl:text-2xl font-bold z-20 shadow-heavy rounded-full">
-                        {activePlayer.discard.length}
-                     </div>
-                 </div>
-                 <span className="text-[10px] 2xl:text-sm text-[#5d4037] mt-2 font-sans uppercase tracking-[0.3em] font-bold group-hover:text-[#8a6e38]">Discard</span>
-             </button>
-          </div>
-        </div>
-        )}
-      </div>
-    </div>
-  );
-}
+          <div className={`flex flex-col gap-6 md:gap-10 lg:gap-4 2xl:gap-16 max-w-[95%] xl:max-w-7xl 2xl:max-w-[90%] mx-auto transition-opacity duration-300 ${isInteracting && currentInteraction?.type === 'HAND_SELECTION' ? 'opacity-30
