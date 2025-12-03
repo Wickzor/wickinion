@@ -159,6 +159,14 @@
         width: 100vw;
       }
 
+      /* Mobile Adjustment: Show full image (contain) to prevent clipping title */
+      @media (max-width: 768px) {
+        .bg-menu {
+          background-size: contain;
+          background-position: center;
+        }
+      }
+
       /* Animation Definitions */
       @keyframes zoom-in-effect {
         0% { transform: scale(1); }
